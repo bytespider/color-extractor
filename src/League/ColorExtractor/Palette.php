@@ -50,7 +50,15 @@ class Palette implements \Countable, \IteratorAggregate
      */
     public static function fromFilename($filename)
     {
-        return self::fromGD(imagecreatefromstring(file_get_contents($filename)));
+        if (class_exists('\Imagick') || extension_loaded('imagick')) {
+            return self::fromImagick(new \Imagick($filename));
+        }
+
+        if (function_exists('gd_info') || extension_loaded('gd')) {
+            return self::fromGD(imagecreatefromstring(file_get_contents($filename)));
+        }
+
+        throw new \RuntimeException('imagick or gd extension must be loaded');
     }
 
     /**
@@ -85,6 +93,29 @@ class Palette implements \Countable, \IteratorAggregate
                     $palette->colors[$color] += 1 :
                     $palette->colors[$color] = 1;
             }
+        }
+
+        arsort($palette->colors);
+
+        return $palette;
+    }
+
+    /**
+     * @param \Imagick $image
+     *
+     * @return Palette
+     */
+    public static function fromImagick(\Imagick $image)
+    {
+        $palette = new self();
+
+        $histogram = $image->getImageHistogram();
+
+        /** @var \ImagickPixel $pixel */
+        foreach ($histogram as $pixel) {
+            $colorComponents = $pixel->getColor();
+            $color = ($colorComponents['r'] * 65536) + ($colorComponents['g'] * 256) + ($colorComponents['b']);
+            $palette->colors[$color] = $pixel->getColorCount();
         }
 
         arsort($palette->colors);
